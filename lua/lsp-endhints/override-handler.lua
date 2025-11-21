@@ -4,13 +4,14 @@ local state = { endhintsEnabled = false }
 local ns = vim.api.nvim_create_namespace("lspEndhints")
 local originalRefreshHandler = vim.lsp.handlers["textDocument/inlayHint"]
 local originalDisableHandler = vim.lsp.inlay_hint.enable
+local refreshHandlersPerLsp = {}
 --------------------------------------------------------------------------------
 
 ---@param err table
 ---@param result lsp.InlayHint[]?
 ---@param ctx lsp.HandlerContext
 ---@param _ table -- config
-local function changedRefreshHandler(err, result, ctx, _)
+local function defaultChangedRefreshHandler(err, result, ctx, _)
 	-- GUARD
 	local bufnr = ctx.bufnr or -1
 	if not vim.api.nvim_buf_is_valid(bufnr) then return end
@@ -110,9 +111,9 @@ local function changedDisableHandler(enable, filter)
 		-- if no buffer filter provided, disable in all buffers
 		if not buffers then
 			buffers = vim.iter(vim.lsp.get_clients())
-				:map(function(client) return vim.lsp.get_buffers_by_client_id(client.id) end)
-				:flatten()
-				:totable()
+				 :map(function(client) return vim.lsp.get_buffers_by_client_id(client.id) end)
+				 :flatten()
+				 :totable()
 		end
 
 		for _, bufnr in pairs(buffers) do
@@ -125,9 +126,19 @@ end
 
 --------------------------------------------------------------------------------
 
-function M.enable()
+---Overrides the handler to display inlay hints for a set of languages
+---@param table table
+function M.setRefreshHandlersTable(table)
+	refreshHandlersPerLsp = table
+end
+
+---Enable the display of endhints
+---@param lsp_name? string
+function M.enable(lsp_name)
+	local name = lsp_name or "none"
 	state.endhintsEnabled = true
-	vim.lsp.handlers["textDocument/inlayHint"] = changedRefreshHandler
+	vim.lsp.handlers["textDocument/inlayHint"] = refreshHandlersPerLsp[name] or
+	defaultChangedRefreshHandler
 	vim.lsp.inlay_hint.enable = changedDisableHandler
 end
 
